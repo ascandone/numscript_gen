@@ -7,6 +7,7 @@ module Numscript.Gen (program, generateProgram, Portions (..)) where
 
 import Control.Monad (replicateM)
 import Data.Ratio ((%))
+import qualified Data.Ratio as Ratio
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Numscript
@@ -28,12 +29,23 @@ nonEmptyVectorOf len g = do
 
 newtype Portions = Portions [Rational] deriving (Show)
 
-portions :: Gen [Rational]
-portions = nonEmptyVectorOf 2 portion
+portionsUpTo :: Rational -> Int -> Gen [Rational]
+portionsUpTo _ s | s <= 0 = return []
+portionsUpTo r 1 = return [r]
+portionsUpTo 0 _ = return []
+portionsUpTo r s = do
+  p <- portionUpTo r
+  ps <- portionsUpTo (r - 1) (s - 1)
+  return (p : ps)
+
+portionUpTo :: Rational -> Gen Rational
+portionUpTo r = do
+  num <- choose (1, Ratio.numerator r)
+  return $ num % Ratio.denominator r
 
 instance Arbitrary Portions where
   arbitrary :: Gen Portions
-  arbitrary = Portions <$> portions
+  arbitrary = sized (fmap Portions . portionsUpTo 1 . (+ 1))
 
 monetary :: Gen Numscript.Monetary
 monetary = do
