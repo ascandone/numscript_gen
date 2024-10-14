@@ -99,6 +99,8 @@ executable numscript-gen
     -- Other library packages from which modules are imported.
     build-depends:
         base ^>=4.17.2.1,
+        text ^>= 2.1.1,
+        numscript-gen,
 
     -- Directories containing source files.
     hs-source-dirs:   app
