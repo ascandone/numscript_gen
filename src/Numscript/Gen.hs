@@ -1,9 +1,9 @@
+{-# HLINT ignore "Use <$>" #-}
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
-{-# HLINT ignore "Use <$>" #-}
-
-module Numscript.Gen (program, generateProgram) where
+module Numscript.Gen (program, generateProgram, Portions (..)) where
 
 import Control.Monad (replicateM)
 import Data.Ratio ((%))
@@ -25,6 +25,15 @@ nonEmptyVectorOf :: Int -> Gen a -> Gen [a]
 nonEmptyVectorOf len g = do
   s <- choose (1, len)
   replicateM s g
+
+newtype Portions = Portions [Rational] deriving (Show)
+
+portions :: Gen [Rational]
+portions = nonEmptyVectorOf 2 portion
+
+instance Arbitrary Portions where
+  arbitrary :: Gen Portions
+  arbitrary = Portions <$> portions
 
 monetary :: Gen Numscript.Monetary
 monetary = do

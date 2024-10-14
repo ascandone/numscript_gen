@@ -1,6 +1,7 @@
 module Main (main) where
 
 import qualified TestFormat
+import qualified TestGen
 
 import Test.Tasty (TestTree, defaultMain, testGroup)
 
@@ -12,4 +13,5 @@ tests =
   testGroup
     "Tests"
     [ TestFormat.tests
+    , TestGen.tests
     ]
