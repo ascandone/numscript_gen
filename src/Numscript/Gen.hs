@@ -17,9 +17,6 @@ import qualified Data.Text as T
 import qualified Numscript
 import Test.QuickCheck
 
-isNonNegative :: (Ord a, Num a) => a -> Bool
-isNonNegative x = x >= 0
-
 toText :: (Show a) => a -> Text
 toText = T.pack . show
 
@@ -51,7 +48,8 @@ portionUpTo r = do
 
 monetary :: Gen Numscript.Monetary
 monetary = do
-  Numscript.Monetary "COIN" <$> arbitrary `suchThat` isNonNegative
+  (NonNegative amt) <- arbitrary
+  return $ Numscript.Monetary "COIN" amt
 
 overdraft :: Gen (Maybe Numscript.Monetary)
 overdraft =
@@ -65,29 +63,42 @@ account = do
   k <- choose (0 :: Int, 5)
   return $ "acc" <> toText k
 
+zeroFreqIf :: (Num p) => p -> Bool -> p
+zeroFreqIf x b = if b then x else 0
+
 source :: Int -> Gen Numscript.Source
 source s =
-  oneof $
-    if s <= 0
-      then base
-      else base ++ rec_
+  frequency
+    [
+      ( 15
+      , return Numscript.SrcAccount
+          <*> account
+      )
+    ,
+      ( 10
+      , return Numscript.SrcAccountOverdraft
+          <*> account
+          <*> overdraft
+      )
+    ,
+      ( 5
+      , return Numscript.SrcCapped
+          <*> monetary
+          <*> source (s - 1)
+      )
+    ,
+      ( 10 `zeroFreqIf` stopRecursion
+      , return Numscript.SrcInorder
+          <*> nonEmptyVectorOf s (source (s - 1))
+      )
+    ,
+      ( 10 `zeroFreqIf` stopRecursion
+      , return Numscript.SrcAllotment
+          <*> allotmentClauses (source (s - 1))
+      )
+    ]
  where
-  base =
-    [ return Numscript.SrcAccount
-        <*> account
-    , return Numscript.SrcAccountOverdraft
-        <*> account
-        <*> overdraft
-    , return Numscript.SrcCapped
-        <*> monetary
-        <*> source (s - 1)
-    ]
-  rec_ =
-    [ return Numscript.SrcInorder
-        <*> nonEmptyVectorOf s (source (s - 1))
-    , return Numscript.SrcAllotment
-        <*> allotmentClauses (source (s - 1))
-    ]
+  stopRecursion = s == 0
 
 allotmentClauses :: Gen a -> Gen [Numscript.AllotmentClause a]
 allotmentClauses gen = sized $ \size -> do
@@ -99,21 +110,26 @@ allotmentClauses gen = sized $ \size -> do
 
 destination :: Int -> Gen Numscript.Destination
 destination s =
-  oneof $
-    if s <= 0
-      then base
-      else base ++ rec_
+  frequency
+    [
+      ( 15
+      , return Numscript.DestAccount
+          <*> account
+      )
+    ,
+      ( 10 `zeroFreqIf` stopRecursion
+      , return Numscript.DestInorder
+          <*> nonEmptyVectorOf s (destinationInorderClause (s - 1))
+          <*> keptOrDest (s - 1)
+      )
+    ,
+      ( 10 `zeroFreqIf` stopRecursion
+      , return Numscript.DestAllotment
+          <*> allotmentClauses (keptOrDest (s - 1))
+      )
+    ]
  where
-  base =
-    [ return $ Numscript.DestAccount "addr"
-    ]
-  rec_ =
-    [ return Numscript.DestInorder
-        <*> nonEmptyVectorOf s (destinationInorderClause (s - 1))
-        <*> keptOrDest (s - 1)
-    , return Numscript.DestAllotment
-        <*> allotmentClauses (keptOrDest (s - 1))
-    ]
+  stopRecursion = s == 0
 
 destinationInorderClause :: Int -> Gen (Numscript.Monetary, Numscript.KeptOrDest)
 destinationInorderClause s =
@@ -123,10 +139,16 @@ destinationInorderClause s =
 
 keptOrDest :: Int -> Gen Numscript.KeptOrDest
 keptOrDest s =
-  oneof
-    [ return Numscript.Kept
-    , return Numscript.To
-        <*> destination s
+  frequency
+    [
+      ( 1
+      , return Numscript.Kept
+      )
+    ,
+      ( 3
+      , return Numscript.To
+          <*> destination s
+      )
     ]
 
 statement :: Gen Numscript.Statement
