@@ -64,7 +64,7 @@ account = do
   return $ "acc" <> toText k
 
 zeroFreqIf :: (Num p) => p -> Bool -> p
-zeroFreqIf x b = if b then x else 0
+zeroFreqIf x b = if b then 0 else x
 
 source :: Int -> Gen Numscript.Source
 source s =
@@ -98,7 +98,7 @@ source s =
       )
     ]
  where
-  stopRecursion = s == 0
+  stopRecursion = s <= 0
 
 allotmentClauses :: Gen a -> Gen [Numscript.AllotmentClause a]
 allotmentClauses gen = sized $ \size -> do
@@ -129,7 +129,7 @@ destination s =
       )
     ]
  where
-  stopRecursion = s == 0
+  stopRecursion = s <= 0
 
 destinationInorderClause :: Int -> Gen (Numscript.Monetary, Numscript.KeptOrDest)
 destinationInorderClause s =
