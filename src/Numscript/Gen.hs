@@ -8,7 +8,7 @@ module Numscript.Gen (
   portionsList,
 ) where
 
-import Control.Monad (forM, replicateM)
+import Control.Monad (forM)
 import Data.Ratio ((%))
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -18,11 +18,6 @@ import qualified Test.QuickCheck as QC
 
 toText :: (Show a) => a -> Text
 toText = T.pack . show
-
-nonEmptyVectorOf :: Int -> Gen a -> Gen [a]
-nonEmptyVectorOf len g = do
-  s <- QC.choose (1, len)
-  replicateM s g
 
 portionsList :: Gen [Rational]
 portionsList = do
@@ -52,10 +47,14 @@ account = do
 zeroFreqIf :: (Num p) => p -> Bool -> p
 zeroFreqIf x b = if b then 0 else x
 
-source :: Int -> Gen Numscript.Source
-source s =
+source :: Numscript.Monetary -> Int -> Gen Numscript.Source
+source sent@(Numscript.Monetary _ sentAmt) s =
   QC.frequency
     [
+      ( 5
+      , return $ Numscript.SrcAccount "world"
+      )
+    ,
       ( 15
       , return Numscript.SrcAccount
           <*> account
@@ -69,18 +68,18 @@ source s =
     ,
       ( 5
       , return Numscript.SrcCapped
-          <*> monetary
-          <*> source (s - 1)
+          <*> fmap (addMonetary sentAmt) monetary
+          <*> source sent (s - 1)
       )
     ,
       ( 10 `zeroFreqIf` stopRecursion
       , return Numscript.SrcInorder
-          <*> nonEmptyVectorOf s (source (s - 1))
+          <*> QC.listOf1 (source sent (s - 1))
       )
     ,
       ( 10 `zeroFreqIf` stopRecursion
       , return Numscript.SrcAllotment
-          <*> allotmentClauses (source (s - 1))
+          <*> allotmentClauses (source sent (s - 1))
       )
     ]
  where
@@ -97,14 +96,14 @@ destination :: Int -> Gen Numscript.Destination
 destination s =
   QC.frequency
     [
-      ( 15
+      ( 30
       , return Numscript.DestAccount
           <*> account
       )
     ,
       ( 10 `zeroFreqIf` stopRecursion
       , return Numscript.DestInorder
-          <*> nonEmptyVectorOf s (destinationInorderClause (s - 1))
+          <*> QC.listOf1 (destinationInorderClause (s - 1))
           <*> keptOrDest (s - 1)
       )
     ,
@@ -138,12 +137,12 @@ keptOrDest s =
 
 statement :: Gen Numscript.Statement
 statement = do
-  amt <- monetary
-  src <- source 4
+  sent <- monetary
+  src <- source sent 4
   dest <- destination 4
   return $
     Numscript.Send
-      { Numscript.amount = amt
+      { Numscript.amount = sent
       , Numscript.source = src
       , Numscript.destination = dest
       }
@@ -153,3 +152,6 @@ program = QC.listOf statement
 
 generateProgram :: IO Numscript.Program
 generateProgram = QC.generate program
+
+addMonetary :: Integer -> Numscript.Monetary -> Numscript.Monetary
+addMonetary x (Numscript.Monetary mon y) = Numscript.Monetary mon (x + y)
