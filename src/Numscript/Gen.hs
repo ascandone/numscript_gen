@@ -5,62 +5,48 @@
 module Numscript.Gen (
   program,
   generateProgram,
-  portionUpTo,
-  portionsUpTo,
+  portionsList,
 ) where
 
 import Control.Monad (forM, replicateM)
 import Data.Ratio ((%))
-import qualified Data.Ratio as Ratio
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Numscript
-import Test.QuickCheck
+import Test.QuickCheck (Gen)
+import qualified Test.QuickCheck as QC
 
 toText :: (Show a) => a -> Text
 toText = T.pack . show
 
 nonEmptyVectorOf :: Int -> Gen a -> Gen [a]
 nonEmptyVectorOf len g = do
-  s <- choose (1, len)
+  s <- QC.choose (1, len)
   replicateM s g
 
--- | a list of rationals that sums to r, and has at most len s
-portionsUpTo :: Rational -> Int -> Gen [Rational]
-portionsUpTo _ s | s <= 0 = return []
-portionsUpTo r 1 = return [r]
-portionsUpTo 0 _ = return []
-portionsUpTo r s = do
-  p <- portionUpTo r
-  ps <- portionsUpTo (r - p) (s - 1)
-  return (p : ps)
-
--- A rational that is at most r
-portionUpTo :: Rational -> Gen Rational
-portionUpTo r | r <= 0 = error "Expected input to be positive"
-portionUpTo r | r > 1 = error "Expected input to be at most 1"
-portionUpTo r = do
-  Positive mult <- arbitrary
-  let num = mult * Ratio.numerator r
-  let den = mult * Ratio.denominator r
-  num' <- choose (1, num)
-  return $ num' % den
+portionsList :: Gen [Rational]
+portionsList = do
+  xs <- QC.listOf1 $ do
+    QC.Positive x <- QC.arbitrary
+    return (x :: Integer)
+  let total = sum xs
+  return $ [x % total | x <- xs]
 
 monetary :: Gen Numscript.Monetary
 monetary = do
-  (NonNegative amt) <- arbitrary
+  (QC.NonNegative amt) <- QC.arbitrary
   return $ Numscript.Monetary "COIN" amt
 
 overdraft :: Gen (Maybe Numscript.Monetary)
 overdraft =
-  oneof
+  QC.oneof
     [ return Nothing
     , Just <$> monetary
     ]
 
 account :: Gen Text
 account = do
-  k <- choose (0 :: Int, 5)
+  k <- QC.choose (0 :: Int, 5)
   return $ "acc" <> toText k
 
 zeroFreqIf :: (Num p) => p -> Bool -> p
@@ -68,7 +54,7 @@ zeroFreqIf x b = if b then 0 else x
 
 source :: Int -> Gen Numscript.Source
 source s =
-  frequency
+  QC.frequency
     [
       ( 15
       , return Numscript.SrcAccount
@@ -101,16 +87,15 @@ source s =
   stopRecursion = s <= 0
 
 allotmentClauses :: Gen a -> Gen [Numscript.AllotmentClause a]
-allotmentClauses gen = sized $ \size -> do
-  let posSize = size + 1
-  portions <- portionsUpTo 1 posSize
+allotmentClauses gen = do
+  portions <- portionsList
   forM portions $ \rat ->
     return (Numscript.AllotmentClause rat)
       <*> gen
 
 destination :: Int -> Gen Numscript.Destination
 destination s =
-  frequency
+  QC.frequency
     [
       ( 15
       , return Numscript.DestAccount
@@ -139,7 +124,7 @@ destinationInorderClause s =
 
 keptOrDest :: Int -> Gen Numscript.KeptOrDest
 keptOrDest s =
-  frequency
+  QC.frequency
     [
       ( 1
       , return Numscript.Kept
@@ -164,7 +149,7 @@ statement = do
       }
 
 program :: Gen Numscript.Program
-program = listOf statement
+program = QC.listOf statement
 
 generateProgram :: IO Numscript.Program
-generateProgram = generate program
+generateProgram = QC.generate program
