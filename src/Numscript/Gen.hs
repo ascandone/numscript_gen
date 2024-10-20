@@ -1,100 +1,120 @@
+{-# HLINT ignore "Use <$>" #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
-{-# HLINT ignore "Use <$>" #-}
+module Numscript.Gen (
+  program,
+  generateProgram,
+  portionsList,
+) where
 
-module Numscript.Gen (program, generateProgram) where
-
-import Control.Monad (replicateM)
+import Control.Monad (forM, replicateM)
 import Data.Ratio ((%))
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Numscript
-import Test.QuickCheck
-
-isNonNegative :: (Ord a, Num a) => a -> Bool
-isNonNegative x = x >= 0
-
-isPositive :: (Ord a, Num a) => a -> Bool
-isPositive x = x > 0
+import Test.QuickCheck (Gen)
+import qualified Test.QuickCheck as QC
 
 toText :: (Show a) => a -> Text
 toText = T.pack . show
 
 nonEmptyVectorOf :: Int -> Gen a -> Gen [a]
 nonEmptyVectorOf len g = do
-  s <- choose (1, len)
+  s <- QC.choose (1, len)
   replicateM s g
+
+portionsList :: Gen [Rational]
+portionsList = do
+  xs <- QC.listOf1 $ do
+    QC.Positive x <- QC.arbitrary
+    return (x :: Integer)
+  let total = sum xs
+  return $ [x % total | x <- xs]
 
 monetary :: Gen Numscript.Monetary
 monetary = do
-  Numscript.Monetary "COIN" <$> arbitrary `suchThat` isNonNegative
-
-portion :: Gen Rational
-portion = do
-  den <- arbitrary `suchThat` isPositive
-  num <- choose (0, den)
-  return $ num % den
+  (QC.NonNegative amt) <- QC.arbitrary
+  return $ Numscript.Monetary "COIN" amt
 
 overdraft :: Gen (Maybe Numscript.Monetary)
 overdraft =
-  oneof
+  QC.oneof
     [ return Nothing
     , Just <$> monetary
     ]
 
 account :: Gen Text
 account = do
-  k <- choose (0 :: Int, 5)
+  k <- QC.choose (0 :: Int, 5)
   return $ "acc" <> toText k
+
+zeroFreqIf :: (Num p) => p -> Bool -> p
+zeroFreqIf x b = if b then 0 else x
 
 source :: Int -> Gen Numscript.Source
 source s =
-  oneof $
-    if s <= 0
-      then base
-      else base ++ rec_
+  QC.frequency
+    [
+      ( 15
+      , return Numscript.SrcAccount
+          <*> account
+      )
+    ,
+      ( 10
+      , return Numscript.SrcAccountOverdraft
+          <*> account
+          <*> overdraft
+      )
+    ,
+      ( 5
+      , return Numscript.SrcCapped
+          <*> monetary
+          <*> source (s - 1)
+      )
+    ,
+      ( 10 `zeroFreqIf` stopRecursion
+      , return Numscript.SrcInorder
+          <*> nonEmptyVectorOf s (source (s - 1))
+      )
+    ,
+      ( 10 `zeroFreqIf` stopRecursion
+      , return Numscript.SrcAllotment
+          <*> allotmentClauses (source (s - 1))
+      )
+    ]
  where
-  base =
-    [ return Numscript.SrcAccount
-        <*> account
-    , return Numscript.SrcAccountOverdraft
-        <*> account
-        <*> overdraft
-    , return Numscript.SrcCapped
-        <*> monetary
-        <*> source (s - 1)
-    ]
-  rec_ =
-    [ return Numscript.SrcInorder
-        <*> nonEmptyVectorOf s (source (s - 1))
-    , return Numscript.SrcAllotment
-        <*> nonEmptyVectorOf s (allotmentClause (source $ s - 1))
-    ]
+  stopRecursion = s <= 0
 
-allotmentClause :: Gen a -> Gen (Numscript.AllotmentClause a)
-allotmentClause x =
-  return Numscript.AllotmentClause
-    <*> portion
-    <*> x
+allotmentClauses :: Gen a -> Gen [Numscript.AllotmentClause a]
+allotmentClauses gen = do
+  portions <- portionsList
+  forM portions $ \rat ->
+    return (Numscript.AllotmentClause rat)
+      <*> gen
 
 destination :: Int -> Gen Numscript.Destination
 destination s =
-  oneof $
-    if s <= 0
-      then base
-      else base ++ rec_
+  QC.frequency
+    [
+      ( 15
+      , return Numscript.DestAccount
+          <*> account
+      )
+    ,
+      ( 10 `zeroFreqIf` stopRecursion
+      , return Numscript.DestInorder
+          <*> nonEmptyVectorOf s (destinationInorderClause (s - 1))
+          <*> keptOrDest (s - 1)
+      )
+    ,
+      ( 10 `zeroFreqIf` stopRecursion
+      , return Numscript.DestAllotment
+          <*> allotmentClauses (keptOrDest (s - 1))
+      )
+    ]
  where
-  base =
-    [ return $ Numscript.DestAccount "addr"
-    ]
-  rec_ =
-    [ return Numscript.DestInorder
-        <*> nonEmptyVectorOf s (destinationInorderClause (s - 1))
-        <*> keptOrDest (s - 1)
-    , return Numscript.DestAllotment
-        <*> nonEmptyVectorOf s (allotmentClause (keptOrDest $ s - 1))
-    ]
+  stopRecursion = s <= 0
 
 destinationInorderClause :: Int -> Gen (Numscript.Monetary, Numscript.KeptOrDest)
 destinationInorderClause s =
@@ -104,10 +124,16 @@ destinationInorderClause s =
 
 keptOrDest :: Int -> Gen Numscript.KeptOrDest
 keptOrDest s =
-  oneof
-    [ return Numscript.Kept
-    , return Numscript.To
-        <*> destination s
+  QC.frequency
+    [
+      ( 1
+      , return Numscript.Kept
+      )
+    ,
+      ( 3
+      , return Numscript.To
+          <*> destination s
+      )
     ]
 
 statement :: Gen Numscript.Statement
@@ -123,7 +149,7 @@ statement = do
       }
 
 program :: Gen Numscript.Program
-program = listOf statement
+program = QC.listOf statement
 
 generateProgram :: IO Numscript.Program
-generateProgram = generate program
+generateProgram = QC.generate program
