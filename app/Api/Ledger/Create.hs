@@ -4,7 +4,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module Api.Ledger.Create (
-    RequestData (..),
+    CreateLedgerOptions (..),
     createLedger,
 ) where
 
@@ -13,19 +13,19 @@ import Data.Function ((&))
 import Network.HTTP.Simple
 import Prelude hiding (putStrLn)
 
-data RequestData
-    = RequestData
+data CreateLedgerOptions
+    = CreateLedgerOptions
     { port :: Int
     , ledgerName :: ByteString
     }
 
 -- | POST /v2/:ledger
-createLedger :: RequestData -> IO ()
+createLedger :: CreateLedgerOptions -> IO ()
 createLedger req = do
     _ <- httpNoBody $ buildRequest req
     return ()
 
-buildRequest :: RequestData -> Request
+buildRequest :: CreateLedgerOptions -> Request
 buildRequest d =
     defaultRequest
         & setRequestMethod "POST"

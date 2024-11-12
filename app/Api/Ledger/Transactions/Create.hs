@@ -5,7 +5,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module Api.Ledger.Transactions.Create (
-    RequestData (..),
+    CreateTransactionOptions (..),
     createTransaction,
     LedgerErrResponse (..),
     TransactionsData (..),
@@ -22,21 +22,21 @@ import GHC.Generics (Generic)
 import Network.HTTP.Simple
 import Prelude hiding (putStrLn)
 
-data RequestData
-    = RequestData
+data CreateTransactionOptions
+    = CreateTransactionOptions
     { port :: Int
     , ledgerName :: ByteString
     , script :: Text
     }
 
 -- | POST /v2/:ledger/transactions
-createTransaction :: RequestData -> IO (Either LedgerErrResponse TransactionsData)
+createTransaction :: CreateTransactionOptions -> IO (Either LedgerErrResponse TransactionsData)
 createTransaction req = do
     response <- httpJSON $ buildRequest req
     let (LedgerResponse e) = getResponseBody response
     return $ data_ <$> e
 
-buildRequest :: RequestData -> Request
+buildRequest :: CreateTransactionOptions -> Request
 buildRequest d =
     defaultRequest
         & setRequestMethod "POST"
