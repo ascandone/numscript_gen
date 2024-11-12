@@ -6,10 +6,8 @@
 
 module Api.Ledger.Transactions.Create (
     RequestData (..),
-    makeTransaction,
+    createTransaction,
     LedgerErrResponse (..),
-    LedgerOkResponse (..),
-    LedgerResponse (..),
     TransactionsData (..),
     Posting (..),
 ) where
@@ -32,8 +30,8 @@ data RequestData
     }
 
 -- | POST /v2/:ledger/transactions
-makeTransaction :: RequestData -> IO (Either LedgerErrResponse TransactionsData)
-makeTransaction req = do
+createTransaction :: RequestData -> IO (Either LedgerErrResponse TransactionsData)
+createTransaction req = do
     response <- httpJSON $ buildRequest req
     let (LedgerResponse e) = getResponseBody response
     return $ data_ <$> e
