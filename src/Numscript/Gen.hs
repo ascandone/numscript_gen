@@ -5,6 +5,7 @@
 module Numscript.Gen (
   program,
   generateProgram,
+  generateSeeds,
   portionsList,
 ) where
 
@@ -183,3 +184,19 @@ generateProgram = QC.generate program
 
 addMonetary :: Integer -> Numscript.Monetary -> Numscript.Monetary
 addMonetary x (Numscript.Monetary mon y) = Numscript.Monetary mon (x + y)
+
+-- | Generate a bunch of postings from @world to @acc_i, in order to seed the script
+seeds :: Gen Numscript.Program
+seeds = do
+  forM [0 :: Int .. 5] $ \i -> do
+    let index = T.pack $ show i
+    amt <- monetary
+    return $
+      Numscript.Send
+        { Numscript.amount = amt
+        , Numscript.source = Numscript.SrcAccount "world"
+        , Numscript.destination = Numscript.DestAccount $ "acc" <> index
+        }
+
+generateSeeds :: IO Numscript.Program
+generateSeeds = QC.generate seeds
