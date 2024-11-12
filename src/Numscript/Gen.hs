@@ -9,19 +9,44 @@ module Numscript.Gen (
 ) where
 
 import Control.Monad (forM)
-import Data.Ratio ((%))
+import Data.Ratio (Ratio, (%))
+import qualified Data.Ratio as Ratio
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Numscript
 import Test.QuickCheck (Gen)
 import qualified Test.QuickCheck as QC
 
+{- |  Pick an unbounded integer using a non uniform distribution
+
+    Takes the odds "a/b" of extracting the given number,
+    otherwise function is called recursively with "a+1/b+1"
+
+    Example sample of 50 picks with rat=1/10 and n=0: [3,2,3,3,4,0,4,0,4,3,0,4,3,1,5,2,0,1,2,2,5,5,4,2,1,1,4,1,7,3,4,2,1,2,0,2,0,5,0,0,0,2,1,4,4,4,6,1,0,1]
+-}
+nonUniform :: (Enum n) => Ratio Int -> n -> Gen n
+nonUniform rat _ | rat > 1 = error "rat must be <= 1"
+nonUniform rat n =
+  QC.frequency
+    [ (numerator, return n)
+    , (denominator - numerator, nonUniform nextRat (succ n))
+    ]
+ where
+  numerator = Ratio.numerator rat
+  denominator = Ratio.denominator rat
+  nextRat = (numerator + 1) % (denominator + 1)
+
+nonUniformListOf :: Gen a -> Gen [a]
+nonUniformListOf g = do
+  n <- nonUniform (1 % 10) 1
+  QC.vectorOf n g
+
 toText :: (Show a) => a -> Text
 toText = T.pack . show
 
 portionsList :: Gen [Rational]
 portionsList = do
-  xs <- QC.listOf1 $ do
+  xs <- nonUniformListOf $ do
     QC.Positive x <- QC.arbitrary
     return (x :: Integer)
   let total = sum xs
@@ -74,7 +99,7 @@ source sent@(Numscript.Monetary _ sentAmt) s =
     ,
       ( 10 `zeroFreqIf` stopRecursion
       , return Numscript.SrcInorder
-          <*> QC.listOf1 (source sent (s - 1))
+          <*> nonUniformListOf (source sent (s - 1))
       )
     ,
       ( 10 `zeroFreqIf` stopRecursion
@@ -103,7 +128,7 @@ destination s =
     ,
       ( 10 `zeroFreqIf` stopRecursion
       , return Numscript.DestInorder
-          <*> QC.listOf1 (destinationInorderClause (s - 1))
+          <*> nonUniformListOf (destinationInorderClause (s - 1))
           <*> keptOrDest (s - 1)
       )
     ,
@@ -137,9 +162,12 @@ keptOrDest s =
 
 statement :: Gen Numscript.Statement
 statement = do
+  srcDepth <- nonUniform (1 % 10) 0
+  destDepth <- nonUniform (1 % 10) 0
+
   sent <- monetary
-  src <- source sent 4
-  dest <- destination 4
+  src <- source sent srcDepth
+  dest <- destination destDepth
   return $
     Numscript.Send
       { Numscript.amount = sent
@@ -148,7 +176,7 @@ statement = do
       }
 
 program :: Gen Numscript.Program
-program = QC.listOf statement
+program = nonUniformListOf statement
 
 generateProgram :: IO Numscript.Program
 generateProgram = QC.generate program
