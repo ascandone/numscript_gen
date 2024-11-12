@@ -22,15 +22,13 @@ import Data.Function ((&))
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Network.HTTP.Simple
-import qualified Numscript
-import qualified Numscript.Format
 import Prelude hiding (putStrLn)
 
 data RequestData
     = RequestData
     { port :: Int
     , ledgerName :: ByteString
-    , script :: Numscript.Program
+    , script :: Text
     }
 
 -- | POST /v2/:ledger/transactions
@@ -50,7 +48,7 @@ buildRequest d =
   where
     script_ =
         Aeson.object
-            [ "plain" .= Numscript.Format.format d.script
+            [ "plain" .= d.script
             ]
 
     body =
