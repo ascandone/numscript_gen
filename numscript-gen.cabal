@@ -91,7 +91,8 @@ executable numscript-gen
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    -- other-modules: 
+    other-modules:
+        LedgerAPI
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -101,6 +102,10 @@ executable numscript-gen
         base ^>=4.17.2.1,
         text ^>= 2.1.1,
         numscript-gen,
+
+        bytestring ^>= 0.12.1.0,
+        http-conduit ^>= 2.3.9.1,
+        aeson ^>= 2.2.3.0,
 
     -- Directories containing source files.
     hs-source-dirs:   app
