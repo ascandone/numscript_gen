@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
-module LedgerAPI (
+module Api.Ledger.Transactions.Create (
     RequestData (..),
     makeTransaction,
     LedgerErrResponse (..),

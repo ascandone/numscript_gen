@@ -92,7 +92,7 @@ executable numscript-gen
 
     -- Modules included in this executable, other than Main.
     other-modules:
-        LedgerAPI
+        Api.Ledger.Transactions.Create,
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
