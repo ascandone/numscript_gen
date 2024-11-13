@@ -10,7 +10,7 @@ module Main where
 import Api.Ledger.Create (CreateLedgerOptions (..), createLedger)
 import Api.Ledger.Transactions.Create (
   CreateTransactionOptions (..),
-  LedgerErrResponse,
+  LedgerErrResponse (..),
   TransactionsData (..),
   createTransaction,
   normalizePostings,
@@ -50,7 +50,7 @@ runOnPort seedProgram program port_ = do
       }
 
 data OkReason
-  = BothErr
+  = NotEnoughFunds
   | CompileErr
   | Same
   deriving (Show)
@@ -63,9 +63,8 @@ runOnce = do
 
   (legacyImpl, rewriteImpl) <- concurrently (runOnPort_ 3068) (runOnPort_ 3069)
   case (legacyImpl, rewriteImpl) of
-    (Left _, Left _) -> return $ Right BothErr
-    -- TODO check there is a compile err
-    (Left _, Right _) -> return $ Right CompileErr
+    (Left ErrResponse{errorCode = "INSUFFICIENT_FUND"}, Left ErrResponse{errorCode = "INTERPRETER_RUNTIME"}) -> return $ Right NotEnoughFunds
+    (Left ErrResponse{errorCode = "COMPILATION_FAILED"}, _) -> return $ Right CompileErr
     (Right p1, Right p2) | normalizePostings p1.postings == normalizePostings p2.postings -> return $ Right Same
     _ -> do
       putStrLn "Got mismatch:"
