@@ -61,6 +61,8 @@ library
 
     -- Modules exported by the library.
     exposed-modules:
+        Api.Ledger.Transactions.Create,
+        Api.Ledger.Create,
         Numscript,
         Numscript.Format,
         Numscript.Gen,
@@ -77,6 +79,11 @@ library
         QuickCheck ^>= 2.15.0.1,
         text ^>= 2.1.1,
 
+        bytestring ^>= 0.12.1.0,
+        http-conduit ^>= 2.3.9.1,
+        aeson ^>= 2.2.3.0,
+        async ^>= 2.2.5,
+
     -- Directories containing source files.
     hs-source-dirs:   src
 
@@ -91,9 +98,7 @@ executable numscript-gen
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    other-modules:
-        Api.Ledger.Transactions.Create,
-        Api.Ledger.Create,
+    -- other-modules:
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
