@@ -59,7 +59,7 @@ data LedgerErrResponse
     { errorCode :: String
     , errorMessage :: String
     }
-    deriving (Generic, Show)
+    deriving (Generic, Show, Eq)
 
 instance Aeson.FromJSON LedgerErrResponse
 
@@ -67,7 +67,7 @@ newtype LedgerOkResponse
     = OkResponse
     { data_ :: TransactionsData
     }
-    deriving (Generic, Show)
+    deriving (Generic, Show, Eq)
 
 data Posting
     = Posting
@@ -76,7 +76,7 @@ data Posting
     , amount :: Integer
     , asset :: Text
     }
-    deriving (Generic, Show)
+    deriving (Generic, Show, Eq)
 
 instance Aeson.FromJSON Posting where
     parseJSON = Aeson.genericParseJSON Aeson.defaultOptions
@@ -85,7 +85,7 @@ newtype TransactionsData
     = TransactionsData
     { postings :: [Posting]
     }
-    deriving (Generic, Show)
+    deriving (Generic, Show, Eq)
 
 instance Aeson.FromJSON TransactionsData where
     parseJSON = Aeson.genericParseJSON Aeson.defaultOptions
