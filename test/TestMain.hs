@@ -1,9 +1,9 @@
 module Main (main) where
 
+import Test.Tasty (TestTree, defaultMain, testGroup)
 import qualified TestFormat
 import qualified TestGen
-
-import Test.Tasty (TestTree, defaultMain, testGroup)
+import qualified TestPostings
 
 main :: IO ()
 main = defaultMain tests
@@ -14,4 +14,5 @@ tests =
     "Tests"
     [ TestFormat.tests
     , TestGen.tests
+    , TestPostings.tests
     ]

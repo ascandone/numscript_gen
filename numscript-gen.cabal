@@ -83,6 +83,7 @@ library
         http-conduit ^>= 2.3.9.1,
         aeson ^>= 2.2.3.0,
         async ^>= 2.2.5,
+        containers ^>= 0.7,
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -132,6 +133,7 @@ test-suite test
     other-modules:
         TestFormat,
         TestGen,
+        TestPostings,
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -153,3 +155,4 @@ test-suite test
         tasty-quickcheck ^>= 0.11,
         tasty-hunit ^>=0.10,
         numscript-gen,
+        containers ^>= 0.7,

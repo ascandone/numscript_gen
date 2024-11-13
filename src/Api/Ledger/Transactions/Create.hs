@@ -10,6 +10,7 @@ module Api.Ledger.Transactions.Create (
     LedgerErrResponse (..),
     TransactionsData (..),
     Posting (..),
+    normalizePostings,
 ) where
 
 import Control.Applicative ((<|>))
@@ -17,6 +18,9 @@ import Data.Aeson ((.=))
 import qualified Data.Aeson as Aeson
 import Data.ByteString (ByteString)
 import Data.Function ((&))
+import qualified Data.List
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Network.HTTP.Simple
@@ -109,3 +113,13 @@ instance Aeson.FromJSON LedgerResponse where
     parseJSON x = LedgerResponse <$> e
       where
         e = Right <$> Aeson.parseJSON x <|> Left <$> Aeson.parseJSON x
+
+normalizePostings :: [Posting] -> Map (Text, Text) Integer
+normalizePostings =
+    Data.List.foldl'
+        (\oldMap posting -> Map.alter (f posting.amount) (posting.source, posting.destination) oldMap)
+        Map.empty
+  where
+    f amt oldValue = case oldValue of
+        Nothing -> Just amt
+        Just oldAmt -> Just $ amt + oldAmt

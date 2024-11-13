@@ -1,4 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
@@ -10,8 +11,9 @@ import Api.Ledger.Create (CreateLedgerOptions (..), createLedger)
 import Api.Ledger.Transactions.Create (
   CreateTransactionOptions (..),
   LedgerErrResponse,
-  TransactionsData,
+  TransactionsData (..),
   createTransaction,
+  normalizePostings,
  )
 import Control.Concurrent.Async (concurrently)
 import Data.Text (Text)
@@ -64,7 +66,7 @@ runOnce = do
     (Left _, Left _) -> return $ Right BothErr
     -- TODO check there is a compile err
     (Left _, Right _) -> return $ Right CompileErr
-    _ | legacyImpl == rewriteImpl -> return $ Right Same
+    (Right p1, Right p2) | normalizePostings p1.postings == normalizePostings p2.postings -> return $ Right Same
     _ -> do
       putStrLn "Got mismatch:"
       putStrLn "--- Seed: "
