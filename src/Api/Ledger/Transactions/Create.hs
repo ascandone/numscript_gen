@@ -120,6 +120,7 @@ normalizePostings =
         (\oldMap posting -> Map.alter (f posting.amount) (posting.source, posting.destination) oldMap)
         Map.empty
   where
+    f 0 _ = Nothing
     f amt oldValue = case oldValue of
         Nothing -> Just amt
         Just oldAmt -> Just $ amt + oldAmt

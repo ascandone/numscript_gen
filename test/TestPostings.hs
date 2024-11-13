@@ -73,4 +73,14 @@ tests =
                     , (("src2", "dest2"), 1)
                     , (("dest", "src"), 2)
                     ]
+        , testCase "skip zero postings" $
+            normalizePostings
+                [ Posting
+                    { source = "src"
+                    , destination = "dest"
+                    , amount = 0
+                    , asset = "COIN"
+                    }
+                ]
+                @?= Map.empty
         ]
