@@ -83,4 +83,10 @@ tests =
                     }
                 ]
                 @?= Map.empty
+        , testCase "do not delete vals on zero posting" $
+            normalizePostings
+                [ Posting{source = "src", destination = "dest", amount = 10, asset = "COIN"}
+                , Posting{source = "src", destination = "dest", amount = 0, asset = "COIN"}
+                ]
+                @?= Map.fromList [(("src", "dest"), 10)]
         ]
