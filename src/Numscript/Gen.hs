@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# HLINT ignore "Use <$>" #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
@@ -73,14 +74,23 @@ account = do
 zeroFreqIf :: (Num p) => p -> Bool -> p
 zeroFreqIf x b = if b then 0 else x
 
-topLevelSource :: Numscript.Monetary -> Int -> Gen Numscript.Source
-topLevelSource = source True
+data SourceOptions
+  = SourceOptions
+  { sentAmt :: Integer
+  , maxNestingRemaining :: Int
+  , isToplevel :: Bool
+  }
 
-nestedSource :: Numscript.Monetary -> Int -> Gen Numscript.Source
-nestedSource = source False
+defaultSourceOptions :: Numscript.Monetary -> Int -> SourceOptions
+defaultSourceOptions (Numscript.Monetary _ amt) depth =
+  SourceOptions
+    { sentAmt = amt
+    , maxNestingRemaining = depth
+    , isToplevel = True
+    }
 
-source :: Bool -> Numscript.Monetary -> Int -> Gen Numscript.Source
-source isTopLevel sent@(Numscript.Monetary _ sentAmt) s =
+sourceWith :: SourceOptions -> Gen Numscript.Source
+sourceWith opts =
   QC.frequency
     [
       ( 5
@@ -100,22 +110,28 @@ source isTopLevel sent@(Numscript.Monetary _ sentAmt) s =
     ,
       ( 5
       , return Numscript.SrcCapped
-          <*> fmap (addMonetary sentAmt) monetary
-          <*> nestedSource sent (s - 1)
+          <*> fmap (addMonetary opts.sentAmt) monetary
+          <*> nestedSource
       )
     ,
       ( 10 `zeroFreqIf` stopRecursion
       , return Numscript.SrcInorder
-          <*> nonUniformListOf (nestedSource sent (s - 1))
+          <*> nonUniformListOf nestedSource
       )
     ,
-      ( 15 `zeroFreqIf` (stopRecursion || not isTopLevel)
+      ( 15 `zeroFreqIf` (stopRecursion || not opts.isToplevel)
       , return Numscript.SrcAllotment
-          <*> allotmentClauses (nestedSource sent (s - 1))
+          <*> allotmentClauses nestedSource
       )
     ]
  where
-  stopRecursion = s <= 0
+  nestedSource =
+    sourceWith
+      opts
+        { isToplevel = False
+        , maxNestingRemaining = opts.maxNestingRemaining - 1
+        }
+  stopRecursion = opts.maxNestingRemaining <= 0
 
 allotmentClauses :: Gen a -> Gen [Numscript.AllotmentClause a]
 allotmentClauses gen = do
@@ -173,7 +189,7 @@ statement = do
   destDepth <- nonUniform (1 % 10) 0
 
   sent <- monetary
-  src <- topLevelSource sent srcDepth
+  src <- sourceWith $ defaultSourceOptions sent srcDepth
   dest <- destination destDepth
   return $
     Numscript.Send
