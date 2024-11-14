@@ -73,8 +73,14 @@ account = do
 zeroFreqIf :: (Num p) => p -> Bool -> p
 zeroFreqIf x b = if b then 0 else x
 
-source :: Numscript.Monetary -> Int -> Gen Numscript.Source
-source sent@(Numscript.Monetary _ sentAmt) s =
+topLevelSource :: Numscript.Monetary -> Int -> Gen Numscript.Source
+topLevelSource = source True
+
+nestedSource :: Numscript.Monetary -> Int -> Gen Numscript.Source
+nestedSource = source False
+
+source :: Bool -> Numscript.Monetary -> Int -> Gen Numscript.Source
+source isTopLevel sent@(Numscript.Monetary _ sentAmt) s =
   QC.frequency
     [
       ( 5
@@ -95,17 +101,17 @@ source sent@(Numscript.Monetary _ sentAmt) s =
       ( 5
       , return Numscript.SrcCapped
           <*> fmap (addMonetary sentAmt) monetary
-          <*> source sent (s - 1)
+          <*> nestedSource sent (s - 1)
       )
     ,
       ( 10 `zeroFreqIf` stopRecursion
       , return Numscript.SrcInorder
-          <*> nonUniformListOf (source sent (s - 1))
+          <*> nonUniformListOf (nestedSource sent (s - 1))
       )
     ,
-      ( 10 `zeroFreqIf` stopRecursion
+      ( 15 `zeroFreqIf` (stopRecursion || not isTopLevel)
       , return Numscript.SrcAllotment
-          <*> allotmentClauses (source sent (s - 1))
+          <*> allotmentClauses (nestedSource sent (s - 1))
       )
     ]
  where
@@ -167,7 +173,7 @@ statement = do
   destDepth <- nonUniform (1 % 10) 0
 
   sent <- monetary
-  src <- source sent srcDepth
+  src <- topLevelSource sent srcDepth
   dest <- destination destDepth
   return $
     Numscript.Send
