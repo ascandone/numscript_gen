@@ -18,6 +18,7 @@ import qualified Data.Text as T
 
 data AllotmentClause a
   = AllotmentClause Rational a
+  deriving (Eq, Show)
 
 from :: Rational -> Source -> AllotmentClause Source
 from = AllotmentClause
@@ -28,20 +29,25 @@ data Source
   | SrcCapped Monetary Source
   | SrcInorder [Source]
   | SrcAllotment [AllotmentClause Source]
+  deriving (Eq, Show)
 
 data CappedDestination
   = CappedDestination Monetary KeptOrDest
+  deriving (Eq, Show)
 
 data Destination
   = DestAccount Text
   | DestInorder [(Monetary, KeptOrDest)] KeptOrDest
   | DestAllotment [AllotmentClause KeptOrDest]
+  deriving (Eq, Show)
 
 data KeptOrDest
   = Kept
   | To Destination
+  deriving (Eq, Show)
 
 data Monetary = Monetary Text Integer
+  deriving (Eq, Show)
 
 data Statement
   = Send
@@ -49,6 +55,7 @@ data Statement
   , source :: Source
   , destination :: Destination
   }
+  deriving (Eq, Show)
 
 type Program = [Statement]
 
