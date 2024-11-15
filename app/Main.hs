@@ -16,6 +16,7 @@ import Api.Ledger.Transactions.Create (
   removeEmptyPostings,
  )
 import Control.Concurrent.Async (concurrently)
+import Data.List (isInfixOf)
 import Data.Text (Text)
 import Data.Text.IO (putStrLn)
 import qualified Data.UUID as UUID
@@ -49,9 +50,15 @@ runOnPort seedProgram program port_ = do
       , script = program
       }
 
+data CompileErr
+  = IsAlreadyEmpty
+  | UnboundedSourceOnlyLast
+  deriving (Show)
+
 data OkReason
   = NotEnoughFunds
   | CompileErr
+  | KnownCompileErr CompileErr
   | Same
   deriving (Show)
 
@@ -59,11 +66,12 @@ runOnce :: IO (Either () OkReason)
 runOnce = do
   seedProgram <- Numscript.Format.format <$> generateSeeds
   program <- Numscript.Format.format <$> generateProgram
-  let runOnPort_ = runOnPort seedProgram program
-
-  (legacyImpl, rewriteImpl) <- concurrently (runOnPort_ 3068) (runOnPort_ 3069)
+  let runOnPort' = runOnPort seedProgram program
+  (legacyImpl, rewriteImpl) <- concurrently (runOnPort' 3068) (runOnPort' 3069)
   case (legacyImpl, rewriteImpl) of
     (Left ErrResponse{errorCode = "INSUFFICIENT_FUND"}, Left ErrResponse{errorCode = "INTERPRETER_RUNTIME"}) -> return $ Right NotEnoughFunds
+    (Left ErrResponse{errorCode = "COMPILATION_FAILED", errorMessage = e}, _) | "is already empty" `isInfixOf` e -> return $ Right (KnownCompileErr IsAlreadyEmpty)
+    (Left ErrResponse{errorCode = "COMPILATION_FAILED", errorMessage = e}, _) | "an unbounded subsource can only be in last position" `isInfixOf` e -> return $ Right (KnownCompileErr UnboundedSourceOnlyLast)
     (Left ErrResponse{errorCode = "COMPILATION_FAILED"}, _) -> return $ Right CompileErr
     (Right p1, Right p2) | removeEmptyPostings p1.postings == removeEmptyPostings p2.postings -> return $ Right Same
     _ -> do

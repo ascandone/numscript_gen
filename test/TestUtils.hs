@@ -185,33 +185,105 @@ tests =
                         , destination = "dest"
                         }
                     ]
-                    -- , testCase "remove duplicates in inorder (nested)" $
-                    --     cleanupNumscript
-                    --         [ Send
-                    --             { amount = Monetary "COIN" 42
-                    --             , source =
-                    --                 SrcInorder
-                    --                     [ "a"
-                    --                     , "b"
-                    --                     , SrcInorder
-                    --                         [ "c"
-                    --                         , "a" -- "@a is already empty at this point"
-                    --                         ]
-                    --                     ]
-                    --             , destination = "dest"
-                    --             }
-                    --         ]
-                    --         @?= [ Send
-                    --                 { amount = Monetary "COIN" 42
-                    --                 , source =
-                    --                     SrcInorder
-                    --                         [ "a"
-                    --                         , "b"
-                    --                         , SrcInorder
-                    --                             [ "c"
-                    --                             ]
-                    --                         ]
-                    --                 , destination = "dest"
-                    --                 }
-                    --             ]
+        , testCase "remove duplicates in inorder (nested)" $
+            cleanupNumscript
+                [ Send
+                    { amount = Monetary "COIN" 42
+                    , source =
+                        SrcInorder
+                            [ "a"
+                            , "b"
+                            , SrcInorder
+                                [ "c"
+                                , "a" -- "@a is already empty at this point"
+                                ]
+                            ]
+                    , destination = "dest"
+                    }
+                ]
+                @?= [ Send
+                        { amount = Monetary "COIN" 42
+                        , source =
+                            SrcInorder
+                                [ "a"
+                                , "b"
+                                , SrcInorder
+                                    [ "c"
+                                    ]
+                                ]
+                        , destination = "dest"
+                        }
+                    ]
+        , testCase "removed duplicates in inorder when capped" $
+            cleanupNumscript
+                [ Send
+                    { amount = Monetary "COIN" 42
+                    , source =
+                        SrcInorder
+                            [ "a"
+                            , "b"
+                            , SrcCapped (Monetary "COIN" 10) "a"
+                            ]
+                    , destination = "dest"
+                    }
+                ]
+                @?= [ Send
+                        { amount = Monetary "COIN" 42
+                        , source =
+                            SrcInorder
+                                [ "a"
+                                , "b"
+                                ]
+                        , destination = "dest"
+                        }
+                    ]
+        , testCase "removed duplicates in inorder when unbounded" $
+            cleanupNumscript
+                [ Send
+                    { amount = Monetary "COIN" 42
+                    , source =
+                        SrcInorder
+                            [ "a"
+                            , "b"
+                            , SrcAccountOverdraft "a" (Just $ Monetary "COIN" 10)
+                            , SrcAccountOverdraft "a" Nothing
+                            ]
+                    , destination = "dest"
+                    }
+                ]
+                @?= [ Send
+                        { amount = Monetary "COIN" 42
+                        , source =
+                            SrcInorder
+                                [ "a"
+                                , "b"
+                                ]
+                        , destination = "dest"
+                        }
+                    ]
+        , testCase "filter out empty allotments" $
+            cleanupNumscript
+                [ Send
+                    { amount = Monetary "COIN" 42
+                    , source =
+                        SrcInorder
+                            [ "a"
+                            , "b"
+                            , SrcInorder
+                                [ "a"
+                                ]
+                            ]
+                    , destination = "dest"
+                    }
+                ]
+                @?= [ Send
+                        { amount = Monetary "COIN" 42
+                        , source =
+                            SrcInorder
+                                [ "a"
+                                , "b"
+                                ]
+                        , destination = "dest"
+                        }
+                    ]
         ]

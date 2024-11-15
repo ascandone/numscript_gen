@@ -85,6 +85,7 @@ library
         aeson ^>= 2.2.3.0,
         async ^>= 2.2.5,
         containers ^>= 0.7,
+        mtl ^>= 2.3.1,
 
     -- Directories containing source files.
     hs-source-dirs:   src
