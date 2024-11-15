@@ -23,6 +23,7 @@ import qualified Data.UUID as UUID
 import Data.UUID.V4 (nextRandom)
 import Numscript.Format (format)
 import Numscript.Gen (generateProgram, generateSeeds)
+import qualified System.Environment
 import Prelude hiding (putStrLn)
 
 runOnPort :: Text -> Text -> Int -> IO (Either LedgerErrResponse TransactionsData)
@@ -97,7 +98,11 @@ runTimes n = do
       runTimes $ n - 1
 
 main :: IO ()
-main = runTimes 10
+main = do
+  gen <- System.Environment.lookupEnv "GENERATE"
+  case gen of
+    Just "true" -> generateScript
+    _ -> runTimes 10
 
 generateScript :: IO ()
 generateScript = do
