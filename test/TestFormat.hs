@@ -34,6 +34,21 @@ fmtTests =
           \)"
       }
   , TestCase
+      { label = "send*"
+      , program =
+          [ SendAll
+              { asset = "USD/2"
+              , source = "src"
+              , destination = "dest"
+              }
+          ]
+      , out =
+          "send [USD/2 *] (\n\
+          \  source = @src\n\
+          \  destination = @dest\n\
+          \)"
+      }
+  , TestCase
       { label = "many statements"
       , program =
           [ Send
@@ -206,6 +221,28 @@ fmtTests =
       }
   , TestCase
       { label = "dest allotment"
+      , program =
+          [ Send
+              { amount = Monetary "USD/2" 100
+              , source = "src"
+              , destination =
+                  DestAllotment
+                    [ AllotmentClause (1 % 3) (To "d1")
+                    , AllotmentClause (2 % 3) Kept
+                    ]
+              }
+          ]
+      , out =
+          "send [USD/2 100] (\n\
+          \  source = @src\n\
+          \  destination = {\n\
+          \    1/3 to @d1\n\
+          \    2/3 kept\n\
+          \  }\n\
+          \)"
+      }
+  , TestCase
+      { label = "send all"
       , program =
           [ Send
               { amount = Monetary "USD/2" 100

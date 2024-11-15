@@ -51,10 +51,15 @@ data Monetary = Monetary Text Integer
 
 data Statement
   = Send
-  { amount :: Monetary
-  , source :: Source
-  , destination :: Destination
-  }
+      { amount :: Monetary
+      , source :: Source
+      , destination :: Destination
+      }
+  | SendAll
+      { asset :: Text
+      , source :: Source
+      , destination :: Destination
+      }
   deriving (Eq, Show)
 
 type Program = [Statement]

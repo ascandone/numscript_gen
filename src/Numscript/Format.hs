@@ -33,6 +33,15 @@ fmtStatement statement = case statement of
           ]
       , Newline <> ")"
       ]
+  Numscript.SendAll asset src dest ->
+    concatDocs
+      [ Text $ "send [" <> asset <> " *] ("
+      , nest
+          [ "source = " <> fmtSrc src
+          , "destination = " <> fmtDest dest
+          ]
+      , Newline <> ")"
+      ]
 
 fmtMonetary :: Numscript.Monetary -> Doc
 fmtMonetary (Numscript.Monetary asset amt) =

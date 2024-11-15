@@ -60,13 +60,6 @@ monetary = do
   (QC.NonNegative amt) <- QC.arbitrary
   return $ Numscript.Monetary "COIN" amt
 
-overdraft :: Gen (Maybe Numscript.Monetary)
-overdraft =
-  QC.oneof
-    [ return Nothing
-    , Just <$> monetary
-    ]
-
 account :: Gen Text
 account = do
   k <- QC.choose (0 :: Int, 5)
@@ -80,21 +73,23 @@ data SourceOptions
   { sentAmt :: Integer
   , maxNestingRemaining :: Int
   , isToplevel :: Bool
+  , isUnbounded :: Bool
   }
 
-defaultSourceOptions :: Numscript.Monetary -> Int -> SourceOptions
-defaultSourceOptions (Numscript.Monetary _ amt) depth =
+defaultSourceOptions :: Numscript.Monetary -> Int -> Bool -> SourceOptions
+defaultSourceOptions (Numscript.Monetary _ amt) depth unbounded =
   SourceOptions
     { sentAmt = amt
     , maxNestingRemaining = depth
     , isToplevel = True
+    , isUnbounded = unbounded
     }
 
-sourceWith :: SourceOptions -> Gen Numscript.Source
-sourceWith opts =
+source :: SourceOptions -> Gen Numscript.Source
+source opts =
   QC.frequency
     [
-      ( 5
+      ( 5 `zeroFreqIf` opts.isUnbounded
       , return $ Numscript.SrcAccount "world"
       )
     ,
@@ -103,35 +98,40 @@ sourceWith opts =
           <*> account
       )
     ,
-      ( 10
+      ( 5
       , return Numscript.SrcAccountOverdraft
           <*> account
-          <*> overdraft
+          <*> (Just <$> monetary)
+      )
+    ,
+      ( 5 `zeroFreqIf` opts.isUnbounded
+      , return Numscript.SrcAccountOverdraft
+          <*> account
+          <*> return Nothing
       )
     ,
       ( 5
       , return Numscript.SrcCapped
           <*> fmap (addMonetary opts.sentAmt) monetary
-          <*> nestedSource
+          <*> source (nestedSourceOpts{isUnbounded = False})
       )
     ,
       ( 10 `zeroFreqIf` stopRecursion
       , return Numscript.SrcInorder
-          <*> nonUniformListOf nestedSource
+          <*> nonUniformListOf (source nestedSourceOpts)
       )
     ,
-      ( 15 `zeroFreqIf` (stopRecursion || not opts.isToplevel)
+      ( 15 `zeroFreqIf` (stopRecursion || not opts.isToplevel || opts.isUnbounded)
       , return Numscript.SrcAllotment
-          <*> allotmentClauses nestedSource
+          <*> allotmentClauses (source nestedSourceOpts{isUnbounded = False})
       )
     ]
  where
-  nestedSource =
-    sourceWith
-      opts
-        { isToplevel = False
-        , maxNestingRemaining = opts.maxNestingRemaining - 1
-        }
+  nestedSourceOpts =
+    opts
+      { isToplevel = False
+      , maxNestingRemaining = opts.maxNestingRemaining - 1
+      }
   stopRecursion = opts.maxNestingRemaining <= 0
 
 allotmentClauses :: Gen a -> Gen [Numscript.AllotmentClause a]
@@ -189,15 +189,30 @@ statement = do
   srcDepth <- nonUniform (1 % 10) 0
   destDepth <- nonUniform (1 % 10) 0
 
-  sent <- monetary
-  src <- sourceWith $ defaultSourceOptions sent srcDepth
+  pickUnbounded <-
+    QC.frequency
+      [ (1, return True)
+      , (3, return False)
+      ]
+
+  sent@(Numscript.Monetary asset _) <- monetary
+  src <- source $ defaultSourceOptions sent srcDepth pickUnbounded
   dest <- destination destDepth
+
   return $
-    Numscript.Send
-      { Numscript.amount = sent
-      , Numscript.source = src
-      , Numscript.destination = dest
-      }
+    if pickUnbounded
+      then
+        Numscript.SendAll
+          { Numscript.asset = asset
+          , Numscript.source = src
+          , Numscript.destination = dest
+          }
+      else
+        Numscript.Send
+          { Numscript.amount = sent
+          , Numscript.source = src
+          , Numscript.destination = dest
+          }
 
 program :: Gen Numscript.Program
 program = nonUniformListOf statement
