@@ -4,6 +4,7 @@ import Test.Tasty (TestTree, defaultMain, testGroup)
 import qualified TestFormat
 import qualified TestGen
 import qualified TestPostings
+import qualified TestUtils
 
 main :: IO ()
 main = defaultMain tests
@@ -15,4 +16,5 @@ tests =
     [ TestFormat.tests
     , TestGen.tests
     , TestPostings.tests
+    , TestUtils.tests
     ]

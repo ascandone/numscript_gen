@@ -16,6 +16,7 @@ import qualified Data.Ratio as Ratio
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Numscript
+import Numscript.Utils (cleanupNumscript)
 import Test.QuickCheck (Gen)
 import qualified Test.QuickCheck as QC
 
@@ -202,7 +203,7 @@ program :: Gen Numscript.Program
 program = nonUniformListOf statement
 
 generateProgram :: IO Numscript.Program
-generateProgram = QC.generate program
+generateProgram = cleanupNumscript <$> QC.generate program
 
 addMonetary :: Integer -> Numscript.Monetary -> Numscript.Monetary
 addMonetary x (Numscript.Monetary mon y) = Numscript.Monetary mon (x + y)

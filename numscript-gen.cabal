@@ -66,6 +66,7 @@ library
         Numscript,
         Numscript.Format,
         Numscript.Gen,
+        Numscript.Utils,
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -133,6 +134,7 @@ test-suite test
     other-modules:
         TestFormat,
         TestGen,
+        TestUtils,
         TestPostings,
 
     -- LANGUAGE extensions used by modules in this package.
