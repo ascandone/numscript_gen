@@ -11,6 +11,7 @@ module Api.Ledger.Transactions.Create (
     TransactionsData (..),
     Posting (..),
     normalizePostings,
+    removeEmptyPostings,
 ) where
 
 import Control.Applicative ((<|>))
@@ -22,6 +23,7 @@ import qualified Data.List
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
+import qualified Data.Text as T
 import GHC.Generics (Generic)
 import Network.HTTP.Simple
 import Prelude hiding (putStrLn)
@@ -89,7 +91,16 @@ newtype TransactionsData
     = TransactionsData
     { postings :: [Posting]
     }
-    deriving (Generic, Show, Eq)
+    deriving (Generic, Eq)
+
+instance Show TransactionsData where
+    show td = header <> "\n" <> T.unpack body
+      where
+        header = "source,destination,amount,asset"
+        body = T.unlines $ map showPosting td.postings
+        showPosting p@Posting{} =
+            let amt = T.pack $ show p.amount
+             in p.source <> "," <> p.destination <> "," <> amt <> "," <> p.asset
 
 instance Aeson.FromJSON TransactionsData where
     parseJSON = Aeson.genericParseJSON Aeson.defaultOptions
@@ -124,3 +135,6 @@ normalizePostings =
     f amt oldValue = case oldValue of
         Nothing -> Just amt
         Just oldAmt -> Just $ amt + oldAmt
+
+removeEmptyPostings :: [Posting] -> [Posting]
+removeEmptyPostings = filter (\p -> p.amount /= 0)

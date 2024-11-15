@@ -13,7 +13,7 @@ import Api.Ledger.Transactions.Create (
   LedgerErrResponse (..),
   TransactionsData (..),
   createTransaction,
-  normalizePostings,
+  removeEmptyPostings,
  )
 import Control.Concurrent.Async (concurrently)
 import Data.Text (Text)
@@ -65,16 +65,16 @@ runOnce = do
   case (legacyImpl, rewriteImpl) of
     (Left ErrResponse{errorCode = "INSUFFICIENT_FUND"}, Left ErrResponse{errorCode = "INTERPRETER_RUNTIME"}) -> return $ Right NotEnoughFunds
     (Left ErrResponse{errorCode = "COMPILATION_FAILED"}, _) -> return $ Right CompileErr
-    (Right p1, Right p2) | normalizePostings p1.postings == normalizePostings p2.postings -> return $ Right Same
+    (Right p1, Right p2) | removeEmptyPostings p1.postings == removeEmptyPostings p2.postings -> return $ Right Same
     _ -> do
-      putStrLn "Got mismatch:"
-      putStrLn "--- Seed: "
+      putStrLn "❌ Got mismatch:"
+      putStrLn "//----- Seed: "
       putStrLn seedProgram
-      putStrLn "--- Script: "
+      putStrLn "//----- Script: "
       putStrLn program
-      putStrLn "--- Legacy implementation:"
+      putStrLn "//----- Legacy implementation:"
       print legacyImpl
-      putStrLn "--- New implementation:"
+      putStrLn "//----- New implementation:"
       print rewriteImpl
       return $ Left ()
 
@@ -90,3 +90,9 @@ runTimes n = do
 
 main :: IO ()
 main = runTimes 10
+
+generateScript :: IO ()
+generateScript = do
+  p <- generateProgram
+  putStrLn $ Numscript.Format.format p
+  return ()
