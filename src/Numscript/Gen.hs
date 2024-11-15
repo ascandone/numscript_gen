@@ -1,3 +1,4 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# HLINT ignore "Use <$>" #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -20,6 +21,23 @@ import Numscript.Utils (cleanupNumscript)
 import Test.QuickCheck (Gen)
 import qualified Test.QuickCheck as QC
 
+accountsNumber :: Int
+accountsNumber = 15
+
+smallerRat :: (Integral a) => Ratio a -> Ratio a
+smallerRat rat = (Ratio.numerator rat + 1) % (Ratio.denominator rat + 1)
+
+ratFrequency :: Ratio Int -> Gen a -> Gen a -> Gen a
+ratFrequency rat _ _ | rat > 1 = error "rat must be <= 1"
+ratFrequency rat x y =
+  QC.frequency
+    [ (numerator, x)
+    , (denominator - numerator, y)
+    ]
+ where
+  numerator = Ratio.numerator rat
+  denominator = Ratio.denominator rat
+
 {- |  Pick an unbounded integer using a non uniform distribution
 
     Takes the odds "a/b" of extracting the given number,
@@ -28,16 +46,14 @@ import qualified Test.QuickCheck as QC
     Example sample of 50 picks with rat=1/10 and n=0: [3,2,3,3,4,0,4,0,4,3,0,4,3,1,5,2,0,1,2,2,5,5,4,2,1,1,4,1,7,3,4,2,1,2,0,2,0,5,0,0,0,2,1,4,4,4,6,1,0,1]
 -}
 nonUniform :: (Enum n) => Ratio Int -> n -> Gen n
-nonUniform rat _ | rat > 1 = error "rat must be <= 1"
-nonUniform rat n =
-  QC.frequency
-    [ (numerator, return n)
-    , (denominator - numerator, nonUniform nextRat (succ n))
-    ]
+nonUniform rat n = ratFrequency rat x y
  where
-  numerator = Ratio.numerator rat
-  denominator = Ratio.denominator rat
-  nextRat = (numerator + 1) % (denominator + 1)
+  x = return n
+  y = nonUniform (smallerRat rat) (succ n)
+
+-- | r likelyhood of picking True, 1-r of picking False
+weightedCoin :: Ratio Int -> Gen Bool
+weightedCoin r = ratFrequency r (return True) (return False)
 
 nonUniformListOf :: Gen a -> Gen [a]
 nonUniformListOf g = do
@@ -62,7 +78,7 @@ monetary = do
 
 account :: Gen Text
 account = do
-  k <- QC.choose (0 :: Int, 5)
+  k <- QC.choose (0 :: Int, accountsNumber)
   return $ "acc" <> toText k
 
 zeroFreqIf :: (Num p) => p -> Bool -> p
@@ -71,22 +87,23 @@ zeroFreqIf x b = if b then 0 else x
 data SourceOptions
   = SourceOptions
   { sentAmt :: Integer
-  , maxNestingRemaining :: Int
   , isToplevel :: Bool
   , isUnbounded :: Bool
+  , keepNestingProbabability :: Ratio Int
   }
 
-defaultSourceOptions :: Numscript.Monetary -> Int -> Bool -> SourceOptions
-defaultSourceOptions (Numscript.Monetary _ amt) depth unbounded =
+defaultSourceOptions :: Numscript.Monetary -> Bool -> SourceOptions
+defaultSourceOptions (Numscript.Monetary _ amt) unbounded =
   SourceOptions
     { sentAmt = amt
-    , maxNestingRemaining = depth
     , isToplevel = True
     , isUnbounded = unbounded
+    , keepNestingProbabability = 1 % 15
     }
 
 source :: SourceOptions -> Gen Numscript.Source
-source opts =
+source opts = do
+  stopRecursion <- weightedCoin opts.keepNestingProbabability
   QC.frequency
     [
       ( 5 `zeroFreqIf` opts.isUnbounded
@@ -130,9 +147,8 @@ source opts =
   nestedSourceOpts =
     opts
       { isToplevel = False
-      , maxNestingRemaining = opts.maxNestingRemaining - 1
+      , keepNestingProbabability = smallerRat opts.keepNestingProbabability
       }
-  stopRecursion = opts.maxNestingRemaining <= 0
 
 allotmentClauses :: Gen a -> Gen [Numscript.AllotmentClause a]
 allotmentClauses gen = do
@@ -141,8 +157,20 @@ allotmentClauses gen = do
     return (Numscript.AllotmentClause rat)
       <*> gen
 
-destination :: Int -> Gen Numscript.Destination
-destination s =
+newtype DestinationOptions
+  = DestinationOptions
+  { keepNestingProbabability :: Ratio Int
+  }
+
+defaultDestinationOptions :: DestinationOptions
+defaultDestinationOptions =
+  DestinationOptions
+    { keepNestingProbabability = 1 % 15
+    }
+
+destination :: DestinationOptions -> Gen Numscript.Destination
+destination opts = do
+  stopRecursion <- weightedCoin opts.keepNestingProbabability
   QC.frequency
     [
       ( 30
@@ -152,26 +180,29 @@ destination s =
     ,
       ( 10 `zeroFreqIf` stopRecursion
       , return Numscript.DestInorder
-          <*> nonUniformListOf (destinationInorderClause (s - 1))
-          <*> keptOrDest (s - 1)
+          <*> nonUniformListOf (destinationInorderClause nestedDestOpts)
+          <*> keptOrDest nestedDestOpts
       )
     ,
       ( 10 `zeroFreqIf` stopRecursion
       , return Numscript.DestAllotment
-          <*> allotmentClauses (keptOrDest (s - 1))
+          <*> allotmentClauses (keptOrDest nestedDestOpts)
       )
     ]
  where
-  stopRecursion = s <= 0
+  nestedDestOpts =
+    DestinationOptions
+      { keepNestingProbabability = smallerRat opts.keepNestingProbabability
+      }
 
-destinationInorderClause :: Int -> Gen (Numscript.Monetary, Numscript.KeptOrDest)
-destinationInorderClause s =
+destinationInorderClause :: DestinationOptions -> Gen (Numscript.Monetary, Numscript.KeptOrDest)
+destinationInorderClause opts =
   return (,)
     <*> monetary
-    <*> keptOrDest s
+    <*> keptOrDest opts
 
-keptOrDest :: Int -> Gen Numscript.KeptOrDest
-keptOrDest s =
+keptOrDest :: DestinationOptions -> Gen Numscript.KeptOrDest
+keptOrDest opts =
   QC.frequency
     [
       ( 1
@@ -180,15 +211,12 @@ keptOrDest s =
     ,
       ( 3
       , return Numscript.To
-          <*> destination s
+          <*> destination opts
       )
     ]
 
 statement :: Gen Numscript.Statement
 statement = do
-  srcDepth <- nonUniform (1 % 10) 0
-  destDepth <- nonUniform (1 % 10) 0
-
   pickUnbounded <-
     QC.frequency
       [ (1, return True)
@@ -196,8 +224,8 @@ statement = do
       ]
 
   sent@(Numscript.Monetary asset _) <- monetary
-  src <- source $ defaultSourceOptions sent srcDepth pickUnbounded
-  dest <- destination destDepth
+  src <- source $ defaultSourceOptions sent pickUnbounded
+  dest <- destination defaultDestinationOptions
 
   return $
     if pickUnbounded
@@ -226,7 +254,7 @@ addMonetary x (Numscript.Monetary mon y) = Numscript.Monetary mon (x + y)
 -- | Generate a bunch of postings from @world to @acc_i, in order to seed the script
 seeds :: Gen Numscript.Program
 seeds = do
-  forM [0 :: Int .. 5] $ \i -> do
+  forM [0 :: Int .. accountsNumber] $ \i -> do
     let index = T.pack $ show i
     amt <- monetary
     return $
